@@ -1,0 +1,13 @@
+# macOS / exFAT 元数据
+._*
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# 编辑器
+.vscode/
+.idea/
+
+# 临时文件
+*.tmp
+*.log
