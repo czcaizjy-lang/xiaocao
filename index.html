@@ -423,7 +423,8 @@
           for (let c = 0; c < cols.length; c++) row[cols[c]] = columns[cols[c]][i];
           rows[i] = row;
         }
-        return { meta: raw.meta || {}, stockDelivery: raw.stockDelivery || {}, rows: rows };
+        // 保留 payload 的**全部**顶层 key：只返回固定几个 key 会静默丢掉字段。
+        return { ...raw, rows: rows };
       };
       const dataTag = document.getElementById('dashboard-data');
       const rawPayload = dataTag && dataTag.textContent.trim()
