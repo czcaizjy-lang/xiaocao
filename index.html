@@ -411,9 +411,19 @@
       const gateInput = document.getElementById("gate-input");
       const gateError = document.getElementById("gate-error");
       const gateToggle = document.getElementById("gate-toggle");
+      let loadingShown = false;
       const showLoading = () => {
-        if (!gateCard) return;
-        gateCard.innerHTML = '<h3>口令正确，正在加载数据…</h3><p class="gate-sub">页面约 22MB，首次打开需要几秒；加载完成后会自动进入看板</p>';
+        if (!gateCard || loadingShown) return;
+        loadingShown = true;
+        gateCard.innerHTML = '<h3>口令正确，正在加载数据…</h3><p class="gate-sub">页面较大（约 13MB），首次打开需要几秒；加载完成后会自动进入看板</p>';
+      };
+      // 解锁后的收尾：末尾脚本（数据解析完才执行）就绪时由它隐藏口令门 + 渲染看板；
+      // 若用户是在数据加载完之后才解锁，末尾脚本早已执行过，这里必须自己轮询等它就绪，
+      // 否则门不会被隐藏、看板永远被遮住（2026-10-09 实测踩到）。
+      const enterDashboard = () => {
+        if (typeof window.__jxStartDashboard === 'function') { window.__jxStartDashboard(false); return; }
+        showLoading();
+        setTimeout(enterDashboard, 200);
       };
       let unlocked = false;
       try { unlocked = sessionStorage.getItem(GATE_STORE) === "1"; } catch (e) {}
@@ -427,7 +437,7 @@
         event.preventDefault();                       // 任何情况下都不让表单导航（避免重新下载 22MB）
         if (cyrb53(gateInput.value) === LOCK_HASH) {
           try { sessionStorage.setItem(GATE_STORE, "1"); } catch (e) {}
-          showLoading();
+          enterDashboard();
         } else {
           gateError.classList.add("show");
           gateCard.classList.remove("shake"); void gateCard.offsetWidth; gateCard.classList.add("shake");
@@ -1647,6 +1657,7 @@
         gateEl.classList.add("hidden");
         render();
       }
+      window.__jxStartDashboard=startDashboard;      // 供数据块之前的口令脚本在解锁后调用
       let alreadyUnlocked=false;
       try{alreadyUnlocked=sessionStorage.getItem(GATE_STORE)==="1";}catch(e){}
       if(alreadyUnlocked){startDashboard(false);}
