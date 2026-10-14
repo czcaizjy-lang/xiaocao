@@ -505,6 +505,8 @@
         ? JSON.parse(dataTag.textContent)
         : await (await fetch('data.json')).json();
       const DATA = decodeDashboardData(rawPayload);
+      // 2026-10-14：yoyRows 必须在 dataStart/availableDates 之前解码（否则它们看到的是列式对象、无 length）
+      if (DATA.yoyRows && DATA.yoyRows.cols) DATA.yoyRows = decodeDashboardData({ rows: DATA.yoyRows }).rows;
       const meta = DATA.meta || {};
       const availableDates = [...new Set((DATA.rows || []).map(row => row.date).filter(date => date >= (meta.minDashboardDate || '2026-09-01')))].sort();
       const defaultStart = meta.defaultViewStart || meta.periodStart || availableDates[0] || '';
@@ -1685,7 +1687,6 @@
       window.__jxStartDashboard=startDashboard;      // 供数据块之前的口令脚本在解锁后调用
       // 2026-10-14：往年同期助手（对外版构建时剔除 yoy/yoyRows，故这些能力在该版自动不生效）
       const yoyViewMode = () => !!(DATA.yoyRows && DATA.yoyRows.length && state.start && state.start < (meta.minDashboardDate || '2026-08-01'));
-      if (DATA.yoyRows && DATA.yoyRows.cols) DATA.yoyRows = decodeDashboardData({ rows: DATA.yoyRows }).rows;
       const yoyReady = () => !!(DATA.yoy && DATA.yoy.daily) && !yoyViewMode();
       const shiftYearStr = (value, step) => { const parts = String(value || '').split('-'); return parts.length === 3 ? `${Number(parts[0]) + step}-${parts[1]}-${parts[2]}` : value; };
       let yoyCache = { key: '', data: null };
