@@ -213,6 +213,8 @@
     .table-wrap.mini-rank col.ranking-affiliation-column { width:74px; }
     .table-wrap.mini-rank col.ranking-gmv-column { width:96px; }
     .table-wrap.mini-rank col.ranking-income-column { width:100px; }
+    /* 2026-10-15：mini Top20 面板（右侧仅 ~459px）只保留 名称/归属/支付总GMV 三列，避免一打开就被裁切 */
+    .table-wrap.mini-rank thead th:nth-child(n+4), .table-wrap.mini-rank tbody td:nth-child(n+4) { display:none; }
     .table-wrap.mini-rank thead th { position:sticky; top:0; z-index:2; background:#fafbfe; box-shadow:0 1px 0 #e1e7f0; }
     tbody tr:last-child td { border-bottom:0; }
     tbody tr.data-row { cursor:pointer; }
