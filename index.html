@@ -207,7 +207,7 @@
     .mini-bar i { display:block; height:100%; border-radius:inherit; background:var(--accent); }
     .mini-bar.gmv i { background:var(--accent); }
     /* 2026-10-15：总览两个 Top20 面板 —— 一打开就自适应面板宽度（不再被裁切），表头固定、容器内滚动 */
-    .table-wrap.mini-rank { max-height:430px; overflow-y:auto; overflow-x:hidden; }
+    .table-wrap.mini-rank { max-height:none; overflow:visible; }   /* 2026-10-15：回到长条榜单，不做容器内滚动 */
     .table-wrap.mini-rank table { width:100%; min-width:0 !important; table-layout:fixed; }
     .table-wrap.mini-rank th, .table-wrap.mini-rank td { white-space:normal; word-break:break-word; }
     .table-wrap.mini-rank col.ranking-affiliation-column { width:74px; }
@@ -215,7 +215,7 @@
     .table-wrap.mini-rank col.ranking-income-column { width:100px; }
     /* 2026-10-15：mini Top20 面板（右侧仅 ~459px）只保留 名称/归属/支付总GMV 三列，避免一打开就被裁切 */
     .table-wrap.mini-rank thead th:nth-child(n+4), .table-wrap.mini-rank tbody td:nth-child(n+4) { display:none; }
-    .table-wrap.mini-rank thead th { position:sticky; top:0; z-index:2; background:#fafbfe; box-shadow:0 1px 0 #e1e7f0; }
+    .table-wrap.mini-rank thead th { position:static; }   /* 2026-10-15：取消 sticky（上滑会飘出面板） */
     tbody tr:last-child td { border-bottom:0; }
     tbody tr.data-row { cursor:pointer; }
     tbody tr.data-row:hover td { background:#f4f8ff; }
