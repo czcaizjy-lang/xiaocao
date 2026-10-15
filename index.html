@@ -206,6 +206,14 @@
     .mini-bar { width:100%; height:5px; margin-top:5px; overflow:hidden; border-radius:3px; background:#eaf0f7; }
     .mini-bar i { display:block; height:100%; border-radius:inherit; background:var(--accent); }
     .mini-bar.gmv i { background:var(--accent); }
+    /* 2026-10-15：总览两个 Top20 面板 —— 一打开就自适应面板宽度（不再被裁切），表头固定、容器内滚动 */
+    .table-wrap.mini-rank { max-height:430px; overflow-y:auto; overflow-x:hidden; }
+    .table-wrap.mini-rank table { width:100%; min-width:0 !important; table-layout:fixed; }
+    .table-wrap.mini-rank th, .table-wrap.mini-rank td { white-space:normal; word-break:break-word; }
+    .table-wrap.mini-rank col.ranking-affiliation-column { width:74px; }
+    .table-wrap.mini-rank col.ranking-gmv-column { width:96px; }
+    .table-wrap.mini-rank col.ranking-income-column { width:100px; }
+    .table-wrap.mini-rank thead th { position:sticky; top:0; z-index:2; background:#fafbfe; box-shadow:0 1px 0 #e1e7f0; }
     tbody tr:last-child td { border-bottom:0; }
     tbody tr.data-row { cursor:pointer; }
     tbody tr.data-row:hover td { background:#f4f8ff; }
@@ -1097,7 +1105,7 @@
         const affiliationHead = showAffiliation ? '<th>归属</th>' : '';
         const rows = items.map(item => `<tr><td>${esc(item[0])}</td>${showAffiliation ? `<td><span class="tag neutral">${esc(item[1])}</span></td>` : ''}<td class="num visual-number"><strong>${money(item[2])}</strong><div class="mini-bar gmv"><i style="width:${Math.max(0,Math.min(100,num(item[2]) / maxGmv * 100))}%"></i></div></td><td class="num">${money(item[3])}</td><td class="num">${pct(item[4])}</td></tr>`).join('');
         const affiliationCol = showAffiliation ? '<col class="ranking-affiliation-column">' : '';
-        return `<div class="table-wrap"><table class="ranking-table resizable-table" data-resize-key="ranking-${showAffiliation ? 'affiliated' : 'plain'}" style="min-width:${showAffiliation ? 620 : 540}px"><colgroup><col class="ranking-name-column">${affiliationCol}<col class="ranking-gmv-column"><col class="ranking-income-column"><col></colgroup><thead><tr><th class="ranking-name-column">名称</th>${affiliationHead}<th class="num">支付总GMV</th><th class="num">预估结算收入</th><th class="num">结算率</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        return `<div class="table-wrap mini-rank"><table class="ranking-table resizable-table" data-resize-key="ranking-${showAffiliation ? 'affiliated' : 'plain'}" style="min-width:${showAffiliation ? 620 : 540}px"><colgroup><col class="ranking-name-column">${affiliationCol}<col class="ranking-gmv-column"><col class="ranking-income-column"><col></colgroup><thead><tr><th class="ranking-name-column">名称</th>${affiliationHead}<th class="num">支付总GMV</th><th class="num">预估结算收入</th><th class="num">结算率</th></tr></thead><tbody>${rows}</tbody></table></div>`;
       }
 
       function productView(rows, stat) {
