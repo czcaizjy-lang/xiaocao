@@ -215,6 +215,8 @@
     .table-wrap.mini-rank col.ranking-income-column { width:100px; }
     /* 2026-10-15：mini Top20 面板（右侧仅 ~459px）只保留 名称/归属/支付总GMV 三列，避免一打开就被裁切 */
     .table-wrap.mini-rank thead th:nth-child(n+4), .table-wrap.mini-rank tbody td:nth-child(n+4) { display:none; }
+    /* 被隐藏的列仍在 colgroup 里占宽度（table-layout:fixed 按 col 分配）→ 宽度归零 */
+    .table-wrap.mini-rank colgroup col:nth-child(n+4) { width:0 !important; }
     .table-wrap.mini-rank thead th { position:static; }   /* 2026-10-15：取消 sticky（上滑会飘出面板） */
     tbody tr:last-child td { border-bottom:0; }
     tbody tr.data-row { cursor:pointer; }
