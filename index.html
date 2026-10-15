@@ -26,6 +26,11 @@
       --ranking-name-width:280px;
       --ranking-name-indent:16px;
       --table-min-width:1080px;
+      /* 2026-10-15 用户要求（与内部版同步）：达人 Top20 迷你榜「默认宽距」= 一打开就完整显示 名称/归属/支付总GMV 三列。
+         这三个值就是那三列的固定列宽（合计 377px，刚好落在窄面板内），按参考图量得。 */
+      --ranking-talent-name-width:160px;
+      --ranking-talent-affiliation-width:96px;
+      --ranking-talent-gmv-width:121px;
     }
     * { box-sizing:border-box; }
     html { min-width:320px; }
@@ -184,6 +189,11 @@
     .talent-table { font-size:14px; }
     .talent-table .name-stack small,.talent-table .tag,.talent-table small { font-size:12px; }
     .ranking-name-column { width:var(--ranking-name-width); }
+    /* 2026-10-15 用户要求（与内部版同步）：只有「达人支付GMV Top 20」迷你榜固定前三列列宽（名称/归属/支付总GMV），
+       打开即完整可见；商品 Top20 迷你榜继续用上面的 --ranking-name-width，不受影响。 */
+    .ranking-talent-mini .ranking-name-column { width:var(--ranking-talent-name-width); }
+    .ranking-talent-mini .ranking-affiliation-column { width:var(--ranking-talent-affiliation-width); }
+    .ranking-talent-mini .ranking-gmv-column { width:var(--ranking-talent-gmv-width); }
     .ranking-table th:first-child,.ranking-table td:first-child { padding-left:var(--ranking-name-indent); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     th,td { padding:10px 9px; border-bottom:1px solid #edf1f6; text-align:left; vertical-align:middle; }
     th { color:#687386; background:#fafbfe; font-weight:600; white-space:nowrap; }
@@ -1088,16 +1098,24 @@
           <div class="grid-two"><section class="panel trend"><div class="panel-head"><div><h2>每日经营趋势</h2><p>${esc(rangeLabel())} · 按付款时间自然日汇总</p></div><div style="display:flex;align-items:center;gap:14px"><div class="legend">${state.trendMode==='carrier' ? '<span><i style="background:#0055ff"></i>直播GMV</span><span><i style="background:#2f8b68"></i>短视频GMV</span>' : '<span><i style="background:#0055ff"></i>支付总GMV</span><span><i style="background:#2f8b68"></i>预估结算收入</span>'}${yoyReady() && state.showYoy ? '<span><i style="background:#94a3b8"></i>去年同期GMV</span>' : ''}</div><div class="trend-switch"><button type="button" data-trend="total" class="trend-btn ${state.trendMode==='total'?'active':''}">总GMV</button>${yoyReady() ? `<button type="button" data-yoy-toggle class="trend-btn ${state.showYoy ? 'active' : ''}">去年同期</button>` : ''}<button type="button" data-trend="carrier" class="trend-btn ${state.trendMode==='carrier'?'active':''}">分载体GMV</button></div></div></div><div class="chart-wrap">${chartSvg(rows)}</div></section>
           <section class="panel structure-panel"><div class="panel-head"><div><h2>载体结构</h2><p>按 GMV 贡献拆分</p></div><span class="panel-meta">${money(stat.gmv)}</span></div><div class="carrier-list">${carriers.map(([label,item,color]) => statRow(label,item,stat,color)).join('')}</div></section></div>
           ${businessOverview}
-          <div class="grid-two"><section class="panel"><div class="panel-head"><div><h2>商品支付GMV Top 20</h2><p>当前范围按商品项目编码汇总</p></div><button type="button" class="ghost-button" data-view="product">查看全部</button></div>${miniRankingTable(topProducts.map(item => [item.name,item.key,item.stat.gmv,item.stat.income,item.stat.settlementRate]))}</section><section class="panel"><div class="panel-head"><div><h2>达人支付GMV Top 20</h2><p>当前范围按主播ID汇总</p></div><button type="button" class="ghost-button" data-view="talent">查看全部</button></div>${miniRankingTable(topTalents.map(item => [item.name,item.mode,item.stat.gmv,item.stat.income,item.stat.settlementRate]), state.mode === 'all')}</section></div>`;
+          <div class="grid-two"><section class="panel"><div class="panel-head"><div><h2>商品支付GMV Top 20</h2><p>当前范围按商品项目编码汇总</p></div><button type="button" class="ghost-button" data-view="product">查看全部</button></div>${miniRankingTable(topProducts.map(item => [item.name,item.key,item.stat.gmv,item.stat.income,item.stat.settlementRate]))}</section><section class="panel"><div class="panel-head"><div><h2>达人支付GMV Top 20</h2><p>当前范围按主播ID汇总</p></div><button type="button" class="ghost-button" data-view="talent">查看全部</button></div>${miniRankingTable(topTalents.map(item => [item.name,item.mode,item.stat.gmv,item.stat.income,item.stat.settlementRate]), state.mode === 'all', 'talent')}</section></div>`;
       }
 
-      function miniRankingTable(items, showAffiliation = true) {
+      // variant='talent'：达人 Top20 迷你榜（前三列固定列宽 + 独立列宽记忆键，避免与商品榜共用的旧列宽覆盖默认值）
+      function miniRankingTable(items, showAffiliation = true, variant = '') {
         if (!items.length) return '<div class="empty">当前范围暂无可展示数据</div>';
         const maxGmv = Math.max(1, ...items.map(item => num(item[2])));
         const affiliationHead = showAffiliation ? '<th>归属</th>' : '';
         const rows = items.map(item => `<tr><td>${esc(item[0])}</td>${showAffiliation ? `<td><span class="tag neutral">${esc(item[1])}</span></td>` : ''}<td class="num visual-number"><strong>${money(item[2])}</strong><div class="mini-bar gmv"><i style="width:${Math.max(0,Math.min(100,num(item[2]) / maxGmv * 100))}%"></i></div></td><td class="num">${money(item[3])}</td><td class="num">${pct(item[4])}</td></tr>`).join('');
         const affiliationCol = showAffiliation ? '<col class="ranking-affiliation-column">' : '';
-        return `<div class="table-wrap"><table class="ranking-table resizable-table" data-resize-key="ranking-${showAffiliation ? 'affiliated' : 'plain'}" style="min-width:${showAffiliation ? 620 : 540}px"><colgroup><col class="ranking-name-column">${affiliationCol}<col class="ranking-gmv-column"><col class="ranking-income-column"><col></colgroup><thead><tr><th class="ranking-name-column">名称</th>${affiliationHead}<th class="num">支付总GMV</th><th class="num">预估结算收入</th><th class="num">结算率</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        const isTalentMini = variant === 'talent';
+        const rankingTableClass = `ranking-table resizable-table${isTalentMini ? ' ranking-talent-mini' : ''}`;
+        const resizeKey = isTalentMini ? 'ranking-talent-mini-v1' : `ranking-${showAffiliation ? 'affiliated' : 'plain'}`;
+        const rankingTableMinWidth = showAffiliation ? 620 : 540;
+        // 达人榜必须再给表格一个确定宽度：.resizable-table 是 width:max-content，此时 table-layout:fixed 不生效，
+        // 浏览器走自动布局、指定列宽只当最小值，名称列会被长达人名撑宽，前三列固定列宽就白设了。
+        const rankingTableStyle = isTalentMini ? `width:${rankingTableMinWidth}px;min-width:${rankingTableMinWidth}px` : `min-width:${rankingTableMinWidth}px`;
+        return `<div class="table-wrap"><table class="${rankingTableClass}" data-resize-key="${resizeKey}" style="${rankingTableStyle}"><colgroup><col class="ranking-name-column">${affiliationCol}<col class="ranking-gmv-column"><col class="ranking-income-column"><col></colgroup><thead><tr><th class="ranking-name-column">名称</th>${affiliationHead}<th class="num">支付总GMV</th><th class="num">预估结算收入</th><th class="num">结算率</th></tr></thead><tbody>${rows}</tbody></table></div>`;
       }
 
       function productView(rows, stat) {
@@ -1291,14 +1309,19 @@
         });
       }
 
-      let frozenHeadNode = null;
-      function ensureFrozenHeadNode() {
-        if (frozenHeadNode) return frozenHeadNode;
-        frozenHeadNode = document.createElement('div');
-        frozenHeadNode.className = 'floating-table-head';
-        frozenHeadNode.innerHTML = '<div class="floating-table-head-inner"></div>';
-        document.body.appendChild(frozenHeadNode);
-        return frozenHeadNode;
+      // 2026-10-15 用户要求（与内部版同步）：总览页并排的「商品榜 / 达人榜」都要有冻结表头行。
+      // 原实现只维护 1 个节点 + find() 取第一张命中表 → 只有左边商品榜有冻结行，右边达人榜缺。
+      // 现在按「表头已滚出视口顶部」的表逐张各配一个节点，逐表构建逻辑与原实现完全一致（单表时行为不变）。
+      const frozenHeadNodes = [];
+      function ensureFrozenHeadNode(index = 0) {
+        while (frozenHeadNodes.length <= index) {
+          const host = document.createElement('div');
+          host.className = 'floating-table-head';
+          host.innerHTML = '<div class="floating-table-head-inner"></div>';
+          document.body.appendChild(host);
+          frozenHeadNodes.push(host);
+        }
+        return frozenHeadNodes[index];
       }
       function tableHeadVisibleAtTop(table, wrap) {
         const top = 0;
@@ -1308,8 +1331,7 @@
         const headHeight = head?.getBoundingClientRect().height || 0;
         return head && tableRect.top < top && tableRect.bottom > top + headHeight && wrapRect.bottom > top + headHeight;
       }
-      function buildFrozenHead(table, wrap) {
-        const host = ensureFrozenHeadNode();
+      function buildFrozenHead(host, table, wrap) {
         const inner = host.querySelector('.floating-table-head-inner');
         const wrapRect = wrap.getBoundingClientRect();
         const tableRect = table.getBoundingClientRect();
@@ -1325,16 +1347,12 @@
         host.classList.add('visible');
       }
       function updateFrozenTableHead() {
-        const host = ensureFrozenHeadNode();
-        const active = [...document.querySelectorAll('#content .table-wrap')].find(wrap => {
+        const actives = [...document.querySelectorAll('#content .table-wrap')].filter(wrap => {
           const table = wrap.querySelector('table');
           return table && tableHeadVisibleAtTop(table, wrap);
         });
-        if (!active) {
-          host.classList.remove('visible');
-          return;
-        }
-        buildFrozenHead(active.querySelector('table'), active);
+        actives.forEach((wrap, index) => buildFrozenHead(ensureFrozenHeadNode(index), wrap.querySelector('table'), wrap));
+        frozenHeadNodes.slice(actives.length).forEach(host => host.classList.remove('visible'));
       }
       let frozenHeadEventsReady = false;
       function setupFrozenTableHead() {
