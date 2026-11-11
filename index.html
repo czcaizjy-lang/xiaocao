@@ -972,14 +972,65 @@
         </div>`;
       }
 
+      // ===== 2026-11-11：KPI 环比上期（紧邻等长区间），替换原来的口径说明文字 =====
+      const previousPeriod = () => {
+        if (!state.start || !state.end || yoyViewMode()) return null;
+        const days = dateRange(state.start, state.end).length;
+        const startMs = isoDate(state.start).valueOf();
+        if (!days || !Number.isFinite(startMs)) return null;
+        return {
+          start: new Date(startMs - days * 86400000).toISOString().slice(0, 10),
+          end: new Date(startMs - 86400000).toISOString().slice(0, 10),
+        };
+      };
+      let momCache = { key: null, value: null };
+      const previousPeriodStat = () => {
+        const period = previousPeriod();
+        if (!period) return null;
+        const key = [period.start, period.end, state.mode].join('|');
+        if (momCache.key === key) return momCache.value;
+        const rows = mainAccessor.between(period.start, period.end)
+          .filter(row => state.mode === 'all' || row.mode === state.mode);
+        const value = { period, stat: rows.length ? summarize(rows) : null };
+        momCache = { key, value };
+        return value;
+      };
+      // 金额类：相对变化率（%）；比率类：百分点差值（pp），不换算成相对变化率
+      const momChangeHtml = (cur, prev, unit) => {
+        const c = cur === null || cur === undefined ? null : Number(cur);
+        const p = prev === null || prev === undefined ? null : Number(prev);
+        if (c === null || p === null || !Number.isFinite(c) || !Number.isFinite(p)) return '<span class="yoy-na">—</span>';
+        let delta;
+        if (unit === 'pp') delta = (c - p) * 100;
+        else {
+          if (!p) return '<span class="yoy-na">—</span>';
+          delta = (c - p) / Math.abs(p) * 100;
+        }
+        const cls = delta > 0.05 ? 'yoy-up' : (delta < -0.05 ? 'yoy-down' : 'yoy-flat');
+        const arrow = delta > 0.05 ? '↑' : (delta < -0.05 ? '↓' : '—');
+        return `<span class="${cls}">${arrow}${Math.abs(delta).toFixed(1)}${unit === 'pp' ? 'pp' : '%'}</span>`;
+      };
       function renderMetrics(stat) {
+        const mom = previousPeriodStat();
+        const momStat = mom && mom.stat;
+        const momLabel = mom
+          ? `环比上期 ${dateLabel(mom.period.start)}–${dateLabel(mom.period.end)}（等长 ${dateRange(mom.period.start, mom.period.end).length} 天）`
+          : '环比上期：当前为去年同期视图或上期无数据';
+        const momSub = (key, unit, label) => {
+          const cur = stat[key], prev = momStat ? momStat[key] : null;
+          const fmt = unit === 'pp' ? pct : money;
+          const detail = momStat
+            ? `${momLabel}｜${label}：上期 ${fmt(prev)} → 本期 ${fmt(cur)}`
+            : momLabel;
+          return `<span class="metric-mom" title="${esc(detail)}">环比 ${momChangeHtml(cur, prev, unit)}</span>`;
+        };
         const metrics = [
-          ['支付总GMV', money(stat.gmv), '直播 + 短视频 + 商品卡', 'accent'],
-          ['直播GMV', money(stat.live), pct(ratio(stat.live, stat.gmv)) + ' 占支付总GMV'],
-          ['短视频GMV', money(stat.video), pct(ratio(stat.video, stat.gmv)) + ' 占支付总GMV'],
-          ['商品卡GMV', money(stat.card), '商品卡 + 图文 + 其他'],
-          ['预估结算收入', money(stat.income), '支付总GMV × 商品结算率', 'positive'],
-          ['结算率', pct(stat.settlementRate), '预估结算收入 ÷ 支付总GMV', 'positive'],
+          ['支付总GMV', money(stat.gmv), momSub('gmv', 'pct', '支付总GMV'), 'accent'],
+          ['直播GMV', money(stat.live), momSub('live', 'pct', '直播GMV')],
+          ['短视频GMV', money(stat.video), momSub('video', 'pct', '短视频GMV')],
+          ['商品卡GMV', money(stat.card), momSub('card', 'pct', '商品卡GMV')],
+          ['预估结算收入', money(stat.income), momSub('income', 'pct', '预估结算收入'), 'positive'],
+          ['结算率', pct(stat.settlementRate), momSub('settlementRate', 'pp', '结算率'), 'positive'],
         ];
         return `<section class="metrics">${metrics.map(([label,value,sub,kind]) => `<div class="metric"><div class="metric-label">${label}</div><div class="metric-value ${kind || ''}">${value}</div><div class="metric-sub">${sub}</div></div>`).join('')}</section>`;
       }
