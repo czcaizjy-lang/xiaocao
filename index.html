@@ -47,7 +47,6 @@
     .mode-list button,.view-list button { border:0; border-left:2px solid transparent; border-radius:5px; padding:10px; background:transparent; color:#596477; text-align:left; }
     .mode-list button:hover,.view-list button:hover { background:#f2f6ff; color:var(--accent); }
     .mode-list button.active,.view-list button.active { border-left-color:var(--accent); background:var(--accent-soft); color:var(--accent); font-weight:700; }
-    .mode-list button small { display:block; margin-top:4px; color:#9aa2b1; font-size:10px; font-weight:400; }
     .side-note { position:absolute; right:22px; bottom:20px; left:24px; color:#a1a8b5; font-size:10px; line-height:1.5; }
     main { min-width:0; max-width:1680px; width:100%; padding:24px clamp(18px,3vw,42px) 48px; }
     .topbar { display:flex; align-items:flex-end; justify-content:space-between; gap:20px; padding-bottom:16px; border-bottom:1px solid var(--line); }
@@ -338,7 +337,6 @@
       .mode-list { display:flex; overflow:auto; gap:3px; padding-top:7px; }
       .mode-list button { flex:0 0 auto; min-width:82px; padding:8px 9px; border-left:0; border-bottom:2px solid transparent; text-align:center; }
       .mode-list button.active { border-bottom-color:var(--accent); }
-      .mode-list button small { display:none; }
       .view-list { display:flex; overflow:auto; gap:3px; padding-top:7px; border-top:1px solid #eef2f8; }
       .view-list button { flex:0 0 auto; min-width:70px; padding:8px 9px; border-left:0; border-bottom:2px solid transparent; text-align:center; }
       .view-list button.active { border-bottom-color:var(--accent); }
@@ -623,11 +621,12 @@
         trendMode: "total",
         showYoy: true,
       };
+      // 2026-11-16（二十次）：删掉侧栏业务模式下面的灰色备注（全部已导入数据 / 按达人映射归属），只留模式名。
       const modeOptions = [
-        {id:'all',label:'总览',detail:'全部已导入数据'},
-        {id:'自养号',label:'自养号',detail:'按达人映射归属'},
-        {id:'专场达人',label:'专场达人',detail:'按达人映射归属'},
-        {id:'日播达人',label:'日播达人',detail:'按达人映射归属'},
+        {id:'all',label:'总览'},
+        {id:'自养号',label:'自养号'},
+        {id:'专场达人',label:'专场达人'},
+        {id:'日播达人',label:'日播达人'},
       ];
       const viewOptions = [
         {id:'overview',label:'经营概览'},
@@ -958,7 +957,7 @@
       };
 
       function renderModeNav() {
-        $('#mode-list').innerHTML = modeOptions.map(option => `<button type="button" class="${state.mode === option.id ? 'active' : ''}" data-mode="${esc(option.id)}" aria-pressed="${state.mode === option.id}">${esc(option.label)}<small>${esc(option.detail)}</small></button>`).join('');
+        $('#mode-list').innerHTML = modeOptions.map(option => `<button type="button" class="${state.mode === option.id ? 'active' : ''}" data-mode="${esc(option.id)}" aria-pressed="${state.mode === option.id}">${esc(option.label)}</button>`).join('');
         $('#side-view-list').innerHTML = viewOptions.map(option => `<button type="button" class="${state.view === option.id ? 'active' : ''}" data-view="${option.id}" aria-pressed="${state.view === option.id}">${option.label}</button>`).join('');
       }
 
