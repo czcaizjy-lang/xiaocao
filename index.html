@@ -145,6 +145,23 @@
     .chart-dot { stroke:#fff; stroke-width:1.8; }
     .chart-dot { cursor:pointer; transition:r .12s ease, stroke-width .12s ease; }
     .chart-dot:hover { r:5.5; stroke-width:2.5; }
+    /* 2026-11-23：趋势图平滑曲线 + 入场动效（与内部版同款）。JS 只在图表数据真变时挂 .chart-anim。 */
+    @keyframes chartLineDraw { from { stroke-dashoffset:1; } to { stroke-dashoffset:0; } }
+    @keyframes chartDotPop { from { opacity:0; transform:scale(.15); } to { opacity:1; transform:scale(1); } }
+    @keyframes chartFadeIn { from { opacity:0; } to { opacity:1; } }
+    @keyframes chartAreaIn { from { opacity:0; transform:translateY(10px); } to { opacity:.14; transform:none; } }
+    .chart-anim .chart-line { stroke-dasharray:1; stroke-dashoffset:1; animation:chartLineDraw .9s cubic-bezier(.33,.02,.2,1) forwards; }
+    .chart-anim .chart-dot { transform-box:fill-box; transform-origin:center; animation:chartDotPop .34s cubic-bezier(.34,1.4,.64,1) backwards; }
+    .chart-anim .chart-line-yoy { animation:chartFadeIn .55s ease .5s backwards; }
+    .chart-anim .daily-chart-area { animation:chartAreaIn .7s ease .1s both; }
+    .chart-anim .daily-chart-line { stroke-dasharray:1; stroke-dashoffset:1; animation:chartLineDraw .9s cubic-bezier(.33,.02,.2,1) forwards; }
+    .chart-anim .daily-chart-dot { transform-box:fill-box; transform-origin:center; animation:chartDotPop .32s cubic-bezier(.34,1.4,.64,1) backwards; }
+    @media (prefers-reduced-motion: reduce) {
+      .chart-anim .chart-line, .chart-anim .chart-dot, .chart-anim .chart-line-yoy,
+      .chart-anim .daily-chart-line, .chart-anim .daily-chart-dot, .chart-anim .daily-chart-area {
+        animation:none !important; stroke-dasharray:none; stroke-dashoffset:0;
+      }
+    }
     .chart-hit-area { fill:#fff; fill-opacity:0; pointer-events:all; cursor:crosshair; }
     .chart-tooltip { position:absolute; z-index:4; min-width:180px; padding:9px 10px; pointer-events:none; border:1px solid #d9e2ef; border-radius:5px; background:rgba(255,255,255,.97); box-shadow:0 10px 26px rgba(18,54,112,.14); color:var(--text); font-size:11px; line-height:1.55; }
     .chart-tooltip[hidden] { display:none; }
@@ -1054,6 +1071,67 @@
         return `<section class="metrics">${metrics.map(([label,value,sub,kind]) => `<div class="metric"><div class="metric-label">${label}</div><div class="metric-value ${kind || ''}">${value}</div><div class="metric-sub">${sub}</div></div>`).join('')}</section>`;
       }
 
+      // 2026-11-23：趋势图平滑曲线 + 入场动效（与内部版同一套算法）。
+      // PCHIP（单调三次样条 + Fritsch-Carlson 限幅）：逐点穿过真实数据、段内不过冲、相邻段切线连续。
+      function smoothLinePath(pairs) {
+        const n = pairs.length;
+        if (!n) return '';
+        const f = value => value.toFixed(1);
+        if (n === 1) return `M${f(pairs[0][0])},${f(pairs[0][1])}`;
+        if (n === 2) return `M${f(pairs[0][0])},${f(pairs[0][1])} L${f(pairs[1][0])},${f(pairs[1][1])}`;
+        const h = [], slope = [];
+        for (let i = 0; i < n - 1; i++) {
+          h[i] = pairs[i + 1][0] - pairs[i][0];
+          slope[i] = h[i] ? (pairs[i + 1][1] - pairs[i][1]) / h[i] : 0;
+        }
+        const tangent = new Array(n);
+        tangent[0] = slope[0];
+        tangent[n - 1] = slope[n - 2];
+        for (let i = 1; i < n - 1; i++) {
+          if (slope[i - 1] * slope[i] <= 0) {
+            tangent[i] = 0;
+          } else {
+            const w1 = 2 * h[i] + h[i - 1];
+            const w2 = h[i] + 2 * h[i - 1];
+            tangent[i] = (w1 + w2) / (w1 / slope[i - 1] + w2 / slope[i]);
+          }
+        }
+        for (let i = 0; i < n - 1; i++) {
+          if (!slope[i]) { tangent[i] = 0; tangent[i + 1] = 0; continue; }
+          const alpha = tangent[i] / slope[i];
+          const beta = tangent[i + 1] / slope[i];
+          const radius = alpha * alpha + beta * beta;
+          if (radius > 9) {
+            const tau = 3 / Math.sqrt(radius);
+            tangent[i] = tau * alpha * slope[i];
+            tangent[i + 1] = tau * beta * slope[i];
+          }
+        }
+        let d = `M${f(pairs[0][0])},${f(pairs[0][1])}`;
+        for (let i = 0; i < n - 1; i++) {
+          const step = h[i] / 3;
+          d += ` C${f(pairs[i][0] + step)},${f(pairs[i][1] + tangent[i] * step)}`
+            + ` ${f(pairs[i + 1][0] - step)},${f(pairs[i + 1][1] - tangent[i + 1] * step)}`
+            + ` ${f(pairs[i + 1][0])},${f(pairs[i + 1][1])}`;
+        }
+        return d;
+      }
+      function smoothSegmentedPath(segments) {
+        return segments.filter(segment => segment.length > 1)
+          .map(segment => smoothLinePath(segment)).filter(Boolean).join(' ');
+      }
+      const prefersReducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+      const chartAnimSlot = { trend: '', modal: '' };
+      function chartAnimClass(sig, slot = 'trend') {
+        if (prefersReducedMotion) return '';
+        if (chartAnimSlot[slot] === sig) return '';
+        chartAnimSlot[slot] = sig;
+        return ' chart-anim';
+      }
+      function chartAnimSigOf(points, parts) {
+        return [...parts, points.length, points[0] && points[0].day, points[points.length - 1] && points[points.length - 1].day,
+          Math.round(points.reduce((sum, point) => sum + (point.gmv || 0) + (point.income || 0), 0))].join('|');
+      }
       function chartSvg(rows) {
         // 单遍按天累计（原来 groupRows + 每天一次 summarize，天数 × 全量的重复扫描）
         const byDay = new Map();
@@ -1081,7 +1159,7 @@
         const max = maxRaw * 1.12;
         const x = index => points.length === 1 ? left + plotW / 2 : left + index * plotW / (points.length - 1);
         const y = value => top + plotH - (value / max) * plotH;
-        const path = key => points.map((point,index) => `${index ? 'L' : 'M'}${x(index).toFixed(1)},${y(point[key]).toFixed(1)}`).join(' ');
+        const path = key => smoothLinePath(points.map((point, index) => [x(index), y(point[key])]));
         const levels = [0,.25,.5,.75,1];
         const grid = levels.map(level => `<g><line class="chart-grid" x1="${left}" x2="${width-right}" y1="${y(max*level).toFixed(1)}" y2="${y(max*level).toFixed(1)}"/><text class="chart-axis" x="${left-10}" y="${y(max*level).toFixed(1)}" dy="4" text-anchor="end">${money(max*level)}</text></g>`).join('');
         const legend = isCarrier
@@ -1090,19 +1168,32 @@
         const lineDefs = isCarrier
           ? [{key:'live', color:'#0055ff', label:'直播GMV'},{key:'video', color:'#2f8b68', label:'短视频GMV'}]
           : [{key:'gmv', color:'#0055ff', label:'支付总GMV'},{key:'income', color:'#2f8b68', label:incomeLabel()}];
-        const lines = lineDefs.map(l => `<path class="chart-line" stroke="${l.color}" d="${path(l.key)}"/>`).join('');
-        const yoyPathX = (() => { if (!showYoyX) return ''; let d='', st=false;
-          points.forEach((pt, ix) => { const v = yoyVals[ix]; if (v === null || v === undefined) { st = false; return; }
-            d += `${st ? 'L' : 'M'}${x(ix).toFixed(1)},${y(v).toFixed(1)}`; st = true; });
-          return d ? `<path d="${d}" fill="none" stroke="#94a3b8" stroke-width="1.8" stroke-dasharray="6 4" stroke-linejoin="round"></path>` : ''; })();
-        const dots = points.map((point,index) => `<circle class="chart-dot" data-chart-day="${point.day}" data-chart-gmv="${point.gmv}" data-chart-income="${point.income}" data-chart-live="${point.live}" data-chart-video="${point.video}" cx="${x(index).toFixed(1)}" cy="${y(isCarrier ? Math.max(point.live, point.video) : point.gmv).toFixed(1)}" r="3.8" fill="${isCarrier ? '#0055ff' : '#0055ff'}"></circle>`).join('');
+        const lines = lineDefs.map(l => `<path class="chart-line" stroke="${l.color}" pathLength="1" d="${path(l.key)}"/>`).join('');
+        const yoyPathX = (() => {
+          if (!showYoyX) return '';
+          const segments = [];
+          let current = [];
+          points.forEach((pt, ix) => {
+            const v = yoyVals[ix];
+            if (v === null || v === undefined) { if (current.length) segments.push(current); current = []; return; }
+            current.push([x(ix), y(v)]);
+          });
+          if (current.length) segments.push(current);
+          const d = smoothSegmentedPath(segments);
+          return d ? `<path class="chart-line-yoy" d="${d}" fill="none" stroke="#94a3b8" stroke-width="1.8" stroke-dasharray="6 4" stroke-linejoin="round"></path>` : '';
+        })();
+        const dotDelay = index => Math.round(60 + 760 * (points.length > 1 ? index / (points.length - 1) : 0));
+        const dots = points.map((point,index) => `<circle class="chart-dot" style="animation-delay:${dotDelay(index)}ms" data-chart-day="${point.day}" data-chart-gmv="${point.gmv}" data-chart-income="${point.income}" data-chart-live="${point.live}" data-chart-video="${point.video}" cx="${x(index).toFixed(1)}" cy="${y(isCarrier ? Math.max(point.live, point.video) : point.gmv).toFixed(1)}" r="3.8" fill="${isCarrier ? '#0055ff' : '#0055ff'}"></circle>`).join('');
         const labelIndexes = [...new Set([0, Math.floor((points.length - 1) / 2), points.length - 1])];
         const labels = labelIndexes.map(index => {
           const anchor = index === 0 ? 'start' : (index === points.length - 1 ? 'end' : 'middle');
           return `<text class="chart-axis" x="${x(index).toFixed(1)}" y="${height-14}" text-anchor="${anchor}">${dateLabel(points[index].day)}</text>`;
         }).join('');
         // 更新legend（在panel-head里，外面）
-        return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="每日GMV趋势">${grid}${lines}${yoyPathX}${dots}${labels}</svg><div class="chart-tooltip" id="chart-tooltip" hidden></div>`;
+        const animClass = chartAnimClass(chartAnimSigOf(points, [
+          state.trendMode, state.mode, state.start, state.end, showYoyX ? 'yoy' : '', Math.round(maxRaw),
+        ]));
+        return `<svg class="trend-chart-svg${animClass}" viewBox="0 0 ${width} ${height}" role="img" aria-label="每日GMV趋势">${grid}${lines}${yoyPathX}${dots}${labels}</svg><div class="chart-tooltip" id="chart-tooltip" hidden></div>`;
       }
 
       function dailyGmvChartSvg(rows) {
@@ -1120,7 +1211,7 @@
         const plotW = width - left - right, plotH = height - top - bottom;
         const x = index => points.length === 1 ? left + plotW / 2 : left + index * plotW / (points.length - 1);
         const y = value => top + plotH - (value / max) * plotH;
-        const linePath = points.map((point,index) => `${index ? 'L' : 'M'}${x(index).toFixed(1)},${y(point.gmv).toFixed(1)}`).join(' ');
+        const linePath = smoothLinePath(points.map((point, index) => [x(index), y(point.gmv)]));
         const areaPath = `${linePath} L${x(points.length - 1).toFixed(1)},${y(0).toFixed(1)} L${x(0).toFixed(1)},${y(0).toFixed(1)} Z`;
         const grid = levels.map(level => `<g><line class="daily-chart-grid" x1="${left}" x2="${width-right}" y1="${y(max*level).toFixed(1)}" y2="${y(max*level).toFixed(1)}"/><text class="daily-chart-axis" x="${left-10}" y="${y(max*level).toFixed(1)}" dy="4" text-anchor="end">${axisText(level)}</text></g>`).join('');
         const labelEvery = Math.max(1, Math.ceil(points.length / 7));
@@ -1134,8 +1225,13 @@
           const anchor = index === 0 ? 'start' : (index === lastIndex ? 'end' : 'middle');
           return `<text class="daily-chart-axis" x="${x(index).toFixed(1)}" y="${height-12}" text-anchor="${anchor}">${compactDateLabel(points[index].day)}</text>`;
         }).join('');
-        const dots = points.map((point,index) => `<circle class="daily-chart-dot" data-daily-day="${point.day}" data-daily-gmv="${point.gmv}" cx="${x(index).toFixed(1)}" cy="${y(point.gmv).toFixed(1)}" r="4"><title>${dateLabel(point.day)} 支付GMV ${money(point.gmv)}</title></circle>`).join('');
-        return `<svg class="daily-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="达人每日支付GMV趋势">${grid}<path class="daily-chart-area" d="${areaPath}"/><path class="daily-chart-line" d="${linePath}"/>${dots}${labels}</svg>`;
+        const dotDelay = index => Math.round(60 + 720 * (points.length > 1 ? index / (points.length - 1) : 0));
+        const dots = points.map((point,index) => `<circle class="daily-chart-dot" style="animation-delay:${dotDelay(index)}ms" data-daily-day="${point.day}" data-daily-gmv="${point.gmv}" cx="${x(index).toFixed(1)}" cy="${y(point.gmv).toFixed(1)}" r="4"><title>${dateLabel(point.day)} 支付GMV ${money(point.gmv)}</title></circle>`).join('');
+        const animClass = chartAnimClass(chartAnimSigOf(points, [
+          'modal', state.start, state.end,
+          state.dailyTalentKey || '', state.dailyProductKey || '', state.dailyComboKey || '', state.dailyCategoryKey || '',
+        ]), 'modal');
+        return `<svg class="daily-chart-svg${animClass}" viewBox="0 0 ${width} ${height}" role="img" aria-label="达人每日支付GMV趋势">${grid}<path class="daily-chart-area" d="${areaPath}"/><path class="daily-chart-line" pathLength="1" d="${linePath}"/>${dots}${labels}</svg>`;
       }
 
       function renderDailyTalentModal(rows) {
